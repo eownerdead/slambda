@@ -1,0 +1,6 @@
+- extensions:
+  - default: false
+
+- ignore:
+    name: "Use lambda-case"
+

@@ -1,0 +1,7 @@
+.direnv/
+result*
+
+# Cabal
+dist
+dist-newstyle
+
