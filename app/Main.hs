@@ -1,9 +1,13 @@
 module Main where
 
 import Control.Monad
+import Control.Monad.Combinators
 import Data.List
-import Text.Parsec
-import Text.Parsec.String
+import Data.Text (Text)
+import qualified Data.Text.IO as T
+import Data.Void
+import Text.Megaparsec
+import Text.Megaparsec.Char
 
 data Ast
   = Var String
@@ -19,8 +23,8 @@ instance Show Ast where
 
 main :: IO ()
 main =
-  getLine >>= \input -> case parse (expr <* eof) "slambda" input of
-    Left e -> print e
+  T.getContents >>= \input -> case parse (expr <* eof) "slambda" input of
+    Left e -> putStrLn $ errorBundlePretty e
     Right x -> forM_ (steps x) print
 
 steps :: Ast -> [Ast]
@@ -47,26 +51,28 @@ subst old new (Abs x m) = Abs x' (subst old new m')
     m' = subst x (Var x') m
 subst old new (App m n) = App (subst old new m) (subst old new n)
 
+type Parser = Parsec Void Text
+
 -- expr ::= abs | app
 expr :: Parser Ast
-expr = spaces *> (abs_ <|> app) <* spaces
+expr = ws *> (abs_ <|> app) <* ws
 
 -- abs ::= [\\^λ] ident "." expr
 abs_ :: Parser Ast
 abs_ =
   Abs
-    <$> (oneOf "\\^λ" *> spaces *> ident)
-    <*> (spaces *> char '.' *> expr)
+    <$> (oneOf "\\^λ" *> ws *> ident)
+    <*> (ws *> char '.' *> expr)
 
 -- app ::= factor+
 app :: Parser Ast
-app = foldl1 App <$> many1 factor
+app = foldl1 App <$> some factor
 
 -- factor ::= var | "(" expr ")"
 factor :: Parser Ast
 factor =
-  spaces *> var <* spaces
-    <|> spaces *> char '(' *> expr <* char ')' <* spaces
+  ws *> var <* ws
+    <|> ws *> char '(' *> expr <* char ')' <* ws
 
 -- var ::= ident
 var :: Parser Ast
@@ -74,5 +80,8 @@ var = Var <$> ident
 
 -- ident ::= [a-zA-Z] [0-9a-zA-Z]*
 ident :: Parser String
-ident = (:) <$> letter <*> many alphaNum
+ident = (:) <$> letterChar <*> many alphaNumChar <?> "identifier"
+
+ws :: Parser ()
+ws = hidden space
 
