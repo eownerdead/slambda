@@ -18,8 +18,14 @@ data Ast
 instance Show Ast where
   show (Var x) = x
   show (Abs x m) = "\\" ++ x ++ ". " ++ show m
-  show (App m@(Var _) n) = show m ++ " " ++ show n
-  show (App m n) = "(" ++ show m ++ ") " ++ show n
+  show (App m n) = sm ++ " " ++ sn
+    where
+      sm = case m of
+        (Abs _ _) -> "(" ++ show m ++ ")"
+        _ -> show m
+      sn = case n of
+        (Var _) -> show n
+        _ -> "(" ++ show n ++ ")"
 
 main :: IO ()
 main =
