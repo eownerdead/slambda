@@ -5,6 +5,7 @@ import Data.List
 import Data.Void
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
 data Ast
   = Var String
@@ -78,14 +79,14 @@ type Parser = Parsec Void String
 
 -- expr ::= abs | app
 expr :: Parser Ast
-expr = ws *> (abs_ <|> app) <* ws
+expr = abs_ <|> app
 
 -- abs ::= [\\^λ] ident "." expr
 abs_ :: Parser Ast
 abs_ =
   Abs
-    <$> (oneOf "\\^λ" *> ws *> ident)
-    <*> (ws *> char '.' *> expr)
+    <$> (lexeme (oneOf "\\^λ") *> ident)
+    <*> (symbol "." *> expr)
 
 -- app ::= factor+
 app :: Parser Ast
@@ -94,9 +95,7 @@ app = foldl1 App <$> some factor
 -- factor ::= var | nat | "(" expr ")"
 factor :: Parser Ast
 factor =
-  ws *> var <* ws
-    <|> ws *> nat <* ws
-    <|> ws *> char '(' *> expr <* char ')' <* ws
+  var <|> nat <|> symbol "(" *> expr <* symbol ")"
 
 -- var ::= ident
 var :: Parser Ast
@@ -104,11 +103,21 @@ var = Var <$> ident
 
 -- ident ::= [a-zA-Z] [0-9a-zA-Z]*
 ident :: Parser String
-ident = (:) <$> letterChar <*> many alphaNumChar <?> "identifier"
+ident = lexeme ((:) <$> letterChar <*> many alphaNumChar) <?> "identifier"
 
 -- nat ::= [0-9]*
 nat :: Parser Ast
-nat = toChurchNum . read <$> some digitChar
+nat = toChurchNum <$> lexeme L.decimal
 
-ws :: Parser ()
-ws = hidden space
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
+
+symbol :: String -> Parser String
+symbol = L.symbol sc
+
+sc :: Parser ()
+sc =
+  L.space
+    space1
+    (L.skipLineComment "--")
+    (L.skipBlockCommentNested "{-" "-}")
