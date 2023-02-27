@@ -2,8 +2,6 @@ module Main where
 
 import Control.Monad.Combinators
 import Data.List
-import Data.Text (Text)
-import qualified Data.Text.IO as T
 import Data.Void
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -28,7 +26,7 @@ instance Show Ast where
 
 main :: IO ()
 main =
-  T.getContents >>= \input -> case parse (expr <* eof) "slambda" input of
+  getContents >>= \input -> case parse (expr <* eof) "slambda" input of
     Left e -> putStrLn $ errorBundlePretty e
     Right x -> do
       mapM_ (\y -> putStrLn $ "= " ++ show y) (steps x)
@@ -76,7 +74,7 @@ toChurchNum n = Abs "f" (Abs "x" (toChurchNum' n))
     toChurchNum' 0 = Var "x"
     toChurchNum' m = App (Var "f") (toChurchNum' (m - 1))
 
-type Parser = Parsec Void Text
+type Parser = Parsec Void String
 
 -- expr ::= abs | app
 expr :: Parser Ast
@@ -114,4 +112,3 @@ nat = toChurchNum . read <$> some digitChar
 
 ws :: Parser ()
 ws = hidden space
-

@@ -10,6 +10,5 @@ executable slambda
     ghc-options:      -Wall
     build-depends:
         base ^>=4.15.1.0,
-        text,
         megaparsec,
         parser-combinators
