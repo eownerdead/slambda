@@ -7,6 +7,8 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
+type Let = (String, Ast)
+
 data Ast
   = Var String
   | Abs String Ast
@@ -27,13 +29,15 @@ instance Show Ast where
 
 main :: IO ()
 main =
-  getContents >>= \input -> case parse (expr <* eof) "slambda" input of
+  getContents >>= \input -> case parse slambda "slambda" input of
     Left e -> putStrLn $ errorBundlePretty e
-    Right x -> do
-      mapM_ (\y -> putStrLn $ "= " ++ show y) (steps x)
+    Right (lets, x) -> do
+      -- TODO: Substitution in let in expressions.
+      let st = steps $ foldr (\(k, v) x' -> subst k v x') x lets
+      mapM_ (\y -> putStrLn $ "= " ++ show y) st
       mapM_
         (\n -> putStrLn $ show n ++ " (nat)")
-        (fromChurchNum $ last $ steps x)
+        (fromChurchNum $ last st)
 
 steps :: Ast -> [Ast]
 steps x = unfoldr steps' (Just x)
@@ -77,6 +81,17 @@ toChurchNum n = Abs "f" (Abs "x" (toChurchNum' n))
 
 type Parser = Parsec Void String
 
+kws :: [String]
+kws = ["let", "in"]
+
+-- slambda ::= letIn* expr
+slambda :: Parser ([Let], Ast)
+slambda = ((,) <$> many letIn <*> expr) <* eof
+
+-- letIn ::= "let" ident "=" expr "in"
+letIn :: Parser Let
+letIn = (,) <$> (symbol "let" *> ident) <*> (symbol "=" *> expr <* symbol "in")
+
 -- expr ::= abs | app
 expr :: Parser Ast
 expr = abs_ <|> app
@@ -95,7 +110,7 @@ app = foldl1 App <$> some factor
 -- factor ::= var | nat | "(" expr ")"
 factor :: Parser Ast
 factor =
-  var <|> nat <|> symbol "(" *> expr <* symbol ")"
+  try var <|> nat <|> symbol "(" *> expr <* symbol ")"
 
 -- var ::= ident
 var :: Parser Ast
@@ -103,7 +118,10 @@ var = Var <$> ident
 
 -- ident ::= [a-zA-Z] [0-9a-zA-Z]*
 ident :: Parser String
-ident = lexeme ((:) <$> letterChar <*> many alphaNumChar) <?> "identifier"
+ident = lexeme (p >>= check)
+  where
+    p = (:) <$> letterChar <*> many alphaNumChar <?> "identifier"
+    check x = if x `elem` kws then fail "keyword" else return x
 
 -- nat ::= [0-9]*
 nat :: Parser Ast
