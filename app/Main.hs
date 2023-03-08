@@ -33,7 +33,7 @@ main =
     Left e -> putStrLn $ errorBundlePretty e
     Right (lets, x) -> do
       -- TODO: Substitution in let in expressions.
-      let st = steps $ foldr (\(k, v) x' -> subst k v x') x lets
+      let st = steps $ foldr (\(k, v) x' -> subst [] k v x') x lets
       mapM_ (\y -> putStrLn $ "= " ++ show y) st
       mapM_
         (\n -> putStrLn $ show n ++ " (nat)")
@@ -48,20 +48,32 @@ steps x = unfoldr steps' (Just x)
     steps' Nothing = Nothing
 
 step :: Ast -> Ast
-step (Var x) = Var x
-step (Abs x m) = Abs x (step m)
-step (App (Abs x m) n) = subst x n m
-step (App m n) = App (step m) (step n)
-
-subst :: String -> Ast -> Ast -> Ast
-subst old new (Var x)
-  | x == old = new
-  | otherwise = Var x
-subst old new (Abs x m) = Abs x' (subst old new m')
+step = step' []
   where
-    x' = x ++ "'"
-    m' = subst x (Var x') m
-subst old new (App m n) = App (subst old new m) (subst old new n)
+    step' _ (Var x) = Var x
+    step' vars (Abs x m) = Abs x (step' (x : vars) m)
+    step' vars (App (Abs x m) n) = subst vars x n m
+    step' vars (App m n) = App (step' vars m) (step' vars n)
+
+subst :: [String] -> String -> Ast -> Ast -> Ast
+subst vars old new (Var x)
+  | x == old = alphaConv vars new
+  | otherwise = Var x
+subst vars old new (Abs x m) =
+  alphaConv vars $ Abs x (subst (x : vars) old new m)
+subst vars old new (App m n) = App (subst vars old new m) (subst vars old new n)
+
+alphaConv :: [String] -> Ast -> Ast
+alphaConv _ (Var x) = Var x
+alphaConv vars (Abs x m) = Abs x' (subst vars x (Var x') m)
+  where
+    x' = freshName vars x
+alphaConv vars (App m n) = App (alphaConv vars m) (alphaConv vars n)
+
+freshName :: [String] -> String -> String
+freshName vars x
+  | x `elem` vars = x ++ "'"
+  | otherwise = x
 
 fromChurchNum :: Ast -> Maybe Int
 fromChurchNum (Abs f (Abs x n)) = fromChurchNum' n
